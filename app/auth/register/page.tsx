@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import Modal from '@/components/ui/modal';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const router = useRouter();
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -27,10 +29,15 @@ export default function RegisterPage() {
     if (error) {
       setError(error.message);
     } else {
-      router.push('/auth/login');
+      setShowSuccessModal(true);
     }
 
     setLoading(false);
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    router.push('/auth/login');
   };
 
   return (
@@ -94,6 +101,20 @@ export default function RegisterPage() {
           </Button>
         </div>
       </Card>
+
+      <Modal open={showSuccessModal} onClose={handleCloseModal}>
+        <div className="p-6">
+          <h2 className="text-xl font-bold mb-4">Account Created Successfully!</h2>
+          <p className="text-gray-600 mb-4">
+            We have sent a confirmation email to {email}. Please check your inbox and click the confirmation link to verify your account.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={handleCloseModal}>
+              Continue to Login
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
