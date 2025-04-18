@@ -64,13 +64,26 @@ export function PollForm() {
     if (!validTypes.includes(fileType)) {
       toast({
         title: 'Invalid file type',
-        description: 'Please upload a PDF, DOCX, or image file',
+        description: 'Please upload a PDF, DOCX, or image file (JPEG/PNG)',
         variant: 'destructive',
       })
+      e.target.value = '' // Clear the file input
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload a file smaller than 5MB',
+        variant: 'destructive',
+      })
+      e.target.value = '' // Clear the file input
       return
     }
 
     setFile(selectedFile)
+    setExtractedText('') // Clear any previous extracted text
 
     // Handle image preview
     if (fileType.startsWith('image/')) {

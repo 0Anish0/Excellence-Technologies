@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS polls (
   file_type TEXT,
   extracted_text TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  description TEXT
 );
 
 -- Create votes table
@@ -91,4 +92,55 @@ CREATE POLICY "Allow authenticated users to view poll files"
 CREATE POLICY "Allow users to delete their own poll files"
   ON storage.objects FOR DELETE
   TO authenticated
-  USING (bucket_id = 'poll-files' AND auth.uid()::text = (storage.foldername(name))[1]); 
+  USING (
+    bucket_id = 'poll-files' 
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Add role column to auth.users
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+
+-- Create function to check if user is admin
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to check if user owns a poll
+CREATE OR REPLACE FUNCTION owns_poll(poll_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM polls
+    WHERE id = poll_id AND user_id = auth.uid()
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Update storage policies
+DROP POLICY IF EXISTS "Allow authenticated users to upload poll files" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated users to view poll files" ON storage.objects;
+DROP POLICY IF EXISTS "Allow users to delete their own poll files" ON storage.objects;
+
+CREATE POLICY "Allow authenticated users to upload poll files"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'poll-files');
+
+CREATE POLICY "Allow authenticated users to view poll files"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'poll-files');
+
+CREATE POLICY "Allow users to delete their own poll files"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'poll-files' 
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  ); 

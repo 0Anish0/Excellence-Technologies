@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Download } from "lucide-react"
 
 type Poll = {
   id: string
@@ -204,6 +207,40 @@ export function PollList() {
     }
   }
 
+  const handleDownload = async (fileUrl: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('poll-files')
+        .download(fileUrl)
+
+      if (error) {
+        throw error
+      }
+
+      // Create a blob URL and trigger download
+      const url = window.URL.createObjectURL(data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast({
+        title: "Success",
+        description: "File downloaded successfully",
+      })
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      toast({
+        title: "Error",
+        description: "Failed to download file",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -253,20 +290,44 @@ export function PollList() {
               </p>
             </CardHeader>
             <CardContent>
-              {/* File Preview or Extracted Text */}
-              {(poll.file_url || poll.extracted_text) && (
-                <div className="mb-6">
+              {/* File Preview */}
+              {poll.file_url && (
+                <div className="mb-4">
                   {poll.file_type?.startsWith('image/') ? (
                     <img
                       src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${poll.file_url}`}
                       alt="Poll attachment"
-                      className="max-w-full h-auto max-h-64 rounded"
+                      className="w-full h-auto max-h-64 object-contain rounded-lg"
                     />
-                  ) : poll.extracted_text && (
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {poll.extracted_text}
-                    </p>
-                  )}
+                  ) : poll.file_type === 'application/pdf' ? (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm font-medium">PDF Document</span>
+                      </div>
+                      {poll.extracted_text && (
+                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                          {poll.extracted_text}
+                        </p>
+                      )}
+                    </div>
+                  ) : poll.file_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm font-medium">Word Document</span>
+                      </div>
+                      {poll.extracted_text && (
+                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                          {poll.extracted_text}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -292,31 +353,64 @@ export function PollList() {
 
               {/* Results */}
               {totalVotes > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium mb-2">Results</h4>
-                  <BarChart
-                    data={[
-                      {
-                        name: poll.option1,
-                        value: (voteCount[0] / totalVotes) * 100,
-                      },
-                      {
-                        name: poll.option2,
-                        value: (voteCount[1] / totalVotes) * 100,
-                      },
-                      {
-                        name: poll.option3,
-                        value: (voteCount[2] / totalVotes) * 100,
-                      },
-                      {
-                        name: poll.option4,
-                        value: (voteCount[3] / totalVotes) * 100,
-                      },
-                    ]}
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Total votes: {totalVotes}
-                  </p>
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Results</h4>
+                    <span className="text-sm text-muted-foreground">
+                      Total votes: {totalVotes}
+                    </span>
+                  </div>
+                  <div className="space-y-4">
+                    {[poll.option1, poll.option2, poll.option3, poll.option4].map((option, index) => {
+                      const votes = voteCount[index] || 0
+                      const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
+                      const isUserVote = hasVoted && userVote.selected_option === index + 1
+                      
+                      return (
+                        <div key={index} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className={cn(
+                              "font-medium",
+                              isUserVote && "text-primary"
+                            )}>
+                              {option}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {votes} votes ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                isUserVote ? "bg-primary" : "bg-primary/50"
+                              )}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Download Button */}
+              {poll.file_url && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between p-2 border rounded-md">
+                    <span className="text-sm truncate">
+                      {poll.file_url.split('/').pop()}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownload(poll.file_url, poll.file_url.split('/').pop() || 'document')}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
