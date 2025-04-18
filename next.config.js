@@ -5,6 +5,11 @@ const nextConfig = {
   images: {
     domains: ['localhost'],
   },
+  experimental: {
+    htmlAttributes: {
+      body: ['cz-shortcut-listen']
+    }
+  },
   async headers() {
     return [
       {

@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Poll App',
-  description: 'Create and vote on polls with file attachments',
+  description: 'Excellence Technologies',
 };
 
 export default function RootLayout({
@@ -16,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
         {children}
         <Toaster />
       </body>
