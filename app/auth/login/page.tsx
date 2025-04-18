@@ -1,133 +1,132 @@
 "use client";
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import Link from 'next/link';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+
+const formSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendSuccess, setResendSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClientComponentClient();
+  const { toast } = useToast();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      setIsLoading(true);
 
-    if (error) {
-      if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
-        setEmailNotConfirmed(true);
-        setError('Please confirm your email before logging in.');
-      } else {
-        setError(error.message);
-      }
-    } else {
-      router.push('/upload');
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+
+      if (error) throw error;
+
+      router.push('/dashboard');
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Invalid email or password',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Card className="w-full max-w-md p-0">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Sign in to your account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {emailNotConfirmed && (
-            <div className="mb-4 text-center">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={resendLoading}
-                onClick={async () => {
-                  setResendLoading(true);
-                  setResendSuccess('');
-                  setError('');
-                  const { error } = await supabase.auth.resend({ type: 'signup', email });
-                  if (error) {
-                    setError('Failed to resend confirmation email.');
-                  } else {
-                    setResendSuccess('Confirmation email resent. Please check your inbox.');
-                  }
-                  setResendLoading(false);
-                }}
-              >
-                {resendLoading ? 'Resending...' : 'Resend Confirmation Email'}
-              </Button>
-              {resendSuccess && (
-                <div className="mt-2 text-green-600 text-sm">{resendSuccess}</div>
-              )}
-            </div>
-          )}
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-        <div className="text-center text-sm mt-4 mb-5">
-          Don’t have an account?{' '}
-          <Button asChild variant="link">
-            <a href="/auth/register">Register</a>
-          </Button>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="mx-auto w-full max-w-md space-y-6 p-6">
+        <div className="space-y-2 text-center">
+          <h1 className="text-3xl font-bold">Welcome back</h1>
+          <p className="text-muted-foreground">
+            Enter your credentials to sign in
+          </p>
         </div>
-      </Card>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter your email"
+                      type="email"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter your password"
+                      type="password"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </form>
+        </Form>
+
+        <div className="text-center text-sm">
+          Don&apos;t have an account?{' '}
+          <Link
+            href="/auth/register"
+            className="font-medium text-primary hover:underline"
+          >
+            Sign up
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
