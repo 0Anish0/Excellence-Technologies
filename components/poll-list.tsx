@@ -207,11 +207,25 @@ export function PollList() {
     }
   }
 
-  const handleDownload = async (fileUrl: string, fileName: string) => {
+  const handleDownload = async (fileUrl: string | null, fileName: string) => {
+    if (!fileUrl) {
+      toast({
+        title: "Error",
+        description: "No file to download",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
+      // Clean up the fileUrl to get the correct path
+      const cleanFileUrl = fileUrl.startsWith(process.env.NEXT_PUBLIC_SUPABASE_URL || '')
+        ? fileUrl.replace(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/`, '')
+        : fileUrl;
+
       const { data, error } = await supabase.storage
         .from('poll-files')
-        .download(fileUrl)
+        .download(cleanFileUrl)
 
       if (error) {
         throw error
@@ -221,7 +235,7 @@ export function PollList() {
       const url = window.URL.createObjectURL(data)
       const a = document.createElement('a')
       a.href = url
-      a.download = fileName
+      a.download = fileName || 'download'
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -239,6 +253,13 @@ export function PollList() {
         variant: "destructive",
       })
     }
+  }
+
+  const getImageUrl = (fileUrl: string | null) => {
+    if (!fileUrl) return '';
+    return fileUrl.startsWith(process.env.NEXT_PUBLIC_SUPABASE_URL || '')
+      ? fileUrl.replace(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/`, '')
+      : fileUrl;
   }
 
   if (loading) {
@@ -296,7 +317,7 @@ export function PollList() {
                   {poll.file_type?.startsWith('image/') ? (
                     <div className="relative w-full aspect-video mb-4">
                       <img
-                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${poll.file_url}`}
+                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${getImageUrl(poll.file_url)}`}
                         alt="Poll attachment"
                         className="w-full h-full object-contain rounded-lg"
                       />
