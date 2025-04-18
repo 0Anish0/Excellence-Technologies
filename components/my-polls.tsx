@@ -14,10 +14,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { extractPdfText, extractDocxText } from '@/lib/extractText'
 
 const formSchema = z.object({
   question: z.string().min(1, 'Question is required'),
-  description: z.string().optional(),
   option1: z.string().min(1, 'Option 1 is required'),
   option2: z.string().min(1, 'Option 2 is required'),
   option3: z.string().min(1, 'Option 3 is required'),
@@ -28,7 +28,6 @@ type Poll = {
   id: string
   user_id: string
   question: string
-  description: string | null
   option1: string
   option2: string
   option3: string
@@ -55,7 +54,6 @@ export function MyPolls() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       question: '',
-      description: '',
       option1: '',
       option2: '',
       option3: '',
@@ -135,7 +133,6 @@ export function MyPolls() {
     setEditingPoll(poll)
     form.reset({
       question: poll.question,
-      description: poll.description || '',
       option1: poll.option1,
       option2: poll.option2,
       option3: poll.option3,
@@ -149,6 +146,10 @@ export function MyPolls() {
 
     const selectedFile = e.target.files[0]
     const fileType = selectedFile.type
+
+    // Clear old file preview and extracted text
+    setFilePreview(null)
+    setExtractedText('')
 
     // Validate file type
     const validTypes = [
@@ -180,12 +181,52 @@ export function MyPolls() {
     }
 
     setFile(selectedFile)
-    setExtractedText('')
 
     if (fileType.startsWith('image/')) {
       const reader = new FileReader()
       reader.onload = (e) => setFilePreview(e.target?.result as string)
       reader.readAsDataURL(selectedFile)
+    } else {
+      try {
+        let text = ''
+        if (fileType === 'application/pdf') {
+          try {
+            text = await extractPdfText(selectedFile)
+            if (!text || text === 'No text content found in the PDF.') {
+              toast({
+                title: 'Warning',
+                description: 'No text content could be extracted from the PDF. The PDF might be scanned or contain only images.',
+                variant: 'default',
+              })
+            } else {
+              toast({
+                title: 'Success',
+                description: 'Text extracted successfully from PDF',
+                variant: 'default',
+              })
+            }
+          } catch (pdfError) {
+            console.error('PDF extraction error:', pdfError)
+            toast({
+              title: 'PDF Extraction Warning',
+              description: 'Could not extract text from PDF. The PDF might be scanned or contain only images. You can still upload it as an attachment.',
+              variant: 'default',
+            })
+            text = ''
+          }
+        } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          text = await extractDocxText(selectedFile)
+        }
+        setExtractedText(text)
+      } catch (error) {
+        console.error('Text extraction error:', error)
+        toast({
+          title: 'Text extraction failed',
+          description: 'Failed to extract text from the file. You can still upload it as an attachment.',
+          variant: 'default',
+        })
+        setExtractedText('')
+      }
     }
   }
 
@@ -236,7 +277,6 @@ export function MyPolls() {
         .from('polls')
         .update({
           question: values.question,
-          description: values.description,
           option1: values.option1,
           option2: values.option2,
           option3: values.option3,
@@ -297,11 +337,6 @@ export function MyPolls() {
                 </Button>
               </div>
             </div>
-            {poll.description && (
-              <p className="text-sm text-muted-foreground">
-                {poll.description}
-              </p>
-            )}
           </CardHeader>
           <CardContent>
             {/* File Preview */}
@@ -309,7 +344,7 @@ export function MyPolls() {
               <div className="mb-4">
                 {poll.file_type?.startsWith('image/') ? (
                   <img
-                    src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${poll.file_url}`}
+                    src={poll.file_url}
                     alt="Poll attachment"
                     className="w-full h-auto max-h-64 object-contain rounded-lg"
                   />
@@ -367,80 +402,97 @@ export function MyPolls() {
       ))}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Poll</DialogTitle>
+            <DialogTitle className="text-2xl font-bold">Edit Poll</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="question"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Question</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter your question" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Enter poll description" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* File Upload */}
-              <div className="space-y-2">
-                <FormLabel>Change Attachment (Optional)</FormLabel>
-                <Input
-                  type="file"
-                  accept=".pdf,.docx,.jpg,.jpeg,.png"
-                  onChange={handleFileChange}
-                />
-              </div>
-
-              {/* File Preview */}
-              {filePreview && (
-                <div className="mt-4">
-                  <img
-                    src={filePreview}
-                    alt="Preview"
-                    className="max-w-full h-auto max-h-64 rounded"
-                  />
-                </div>
-              )}
-
-              {/* Options */}
-              {['option1', 'option2', 'option3', 'option4'].map((option, index) => (
+              <div className="space-y-4">
                 <FormField
-                  key={option}
                   control={form.control}
-                  name={option as keyof z.infer<typeof formSchema>}
+                  name="question"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Option {index + 1}</FormLabel>
+                      <FormLabel className="text-base">Question</FormLabel>
                       <FormControl>
-                        <Input placeholder={`Enter option ${index + 1}`} {...field} />
+                        <Input placeholder="Enter your question" {...field} className="text-base" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              ))}
 
-              <Button type="submit">Save Changes</Button>
+                {/* File Upload */}
+                <div className="space-y-2">
+                  <FormLabel className="text-base">Change Attachment (Optional)</FormLabel>
+                  <Input
+                    type="file"
+                    accept=".pdf,.docx,.jpg,.jpeg,.png"
+                    onChange={handleFileChange}
+                    className="text-base"
+                  />
+                </div>
+
+                {/* File Preview or Extracted Text */}
+                {(filePreview || extractedText) && (
+                  <div className="mt-4 space-y-4">
+                    {filePreview && (
+                      <div className="border rounded-lg p-4">
+                        <img
+                          src={filePreview}
+                          alt="Preview"
+                          className="max-w-full h-auto max-h-64 rounded-lg mx-auto"
+                        />
+                      </div>
+                    )}
+                    {extractedText && (
+                      <div className="border rounded-lg p-4">
+                        <Textarea
+                          value={extractedText}
+                          readOnly
+                          className="h-32 text-base"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {['option1', 'option2', 'option3', 'option4'].map((option, index) => (
+                    <FormField
+                      key={option}
+                      control={form.control}
+                      name={option as keyof z.infer<typeof formSchema>}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Option {index + 1}</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder={`Enter option ${index + 1}`} 
+                              {...field} 
+                              className="text-base"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-4 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
             </form>
           </Form>
         </DialogContent>

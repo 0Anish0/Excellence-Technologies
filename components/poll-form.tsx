@@ -96,7 +96,30 @@ export function PollForm() {
       try {
         let text = ''
         if (fileType === 'application/pdf') {
-          text = await extractPdfText(selectedFile)
+          try {
+            text = await extractPdfText(selectedFile)
+            if (!text || text === 'No text content found in the PDF.') {
+              toast({
+                title: 'Warning',
+                description: 'No text content could be extracted from the PDF. The PDF might be scanned or contain only images.',
+                variant: 'default',
+              })
+            } else {
+              toast({
+                title: 'Success',
+                description: 'Text extracted successfully from PDF',
+                variant: 'default',
+              })
+            }
+          } catch (pdfError) {
+            console.error('PDF extraction error:', pdfError)
+            toast({
+              title: 'PDF Extraction Warning',
+              description: 'Could not extract text from PDF. The PDF might be scanned or contain only images. You can still upload it as an attachment.',
+              variant: 'default',
+            })
+            text = '' // Set empty text but allow the upload to continue
+          }
         } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
           text = await extractDocxText(selectedFile)
         }
@@ -105,9 +128,10 @@ export function PollForm() {
         console.error('Text extraction error:', error)
         toast({
           title: 'Text extraction failed',
-          description: 'Failed to extract text from the file',
-          variant: 'destructive',
+          description: 'Failed to extract text from the file. You can still upload it as an attachment.',
+          variant: 'default',
         })
+        setExtractedText('')
       }
     }
   }
