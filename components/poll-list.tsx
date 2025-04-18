@@ -294,37 +294,43 @@ export function PollList() {
               {poll.file_url && (
                 <div className="mb-4">
                   {poll.file_type?.startsWith('image/') ? (
-                    <img
-                      src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${poll.file_url}`}
-                      alt="Poll attachment"
-                      className="w-full h-auto max-h-64 object-contain rounded-lg"
-                    />
+                    <div className="relative w-full aspect-video mb-4">
+                      <img
+                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/poll-files/${poll.file_url}`}
+                        alt="Poll attachment"
+                        className="w-full h-full object-contain rounded-lg"
+                      />
+                    </div>
                   ) : poll.file_type === 'application/pdf' ? (
                     <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 mb-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                         <span className="text-sm font-medium">PDF Document</span>
                       </div>
                       {poll.extracted_text && (
-                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
-                          {poll.extracted_text}
-                        </p>
+                        <div className="mt-2">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {poll.extracted_text}
+                          </p>
+                        </div>
                       )}
                     </div>
                   ) : poll.file_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? (
                     <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 mb-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <span className="text-sm font-medium">Word Document</span>
                       </div>
                       {poll.extracted_text && (
-                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
-                          {poll.extracted_text}
-                        </p>
+                        <div className="mt-2">
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {poll.extracted_text}
+                          </p>
+                        </div>
                       )}
                     </div>
                   ) : null}

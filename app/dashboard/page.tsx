@@ -8,11 +8,11 @@ import { PollList } from '@/components/poll-list'
 import { MyPolls } from '@/components/my-polls'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 type UserRole = 'user' | 'admin'
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('polls')
   const [userRole, setUserRole] = useState<UserRole>('user')
   const [loading, setLoading] = useState(true)
   const supabase = createClientComponentClient()
@@ -30,14 +30,19 @@ export default function DashboardPage() {
         return
       }
 
-      const { data, error } = await supabase
-        .from('users')
+      // Get role from profiles table using id column
+      const { data: profile, error } = await supabase
+        .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
 
-      if (error) throw error
-      setUserRole(data?.role || 'user')
+      if (error) {
+        console.error('Error fetching user role:', error)
+        return
+      }
+
+      setUserRole(profile?.role || 'user')
     } catch (error) {
       console.error('Error checking user role:', error)
     } finally {
@@ -55,12 +60,15 @@ export default function DashboardPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
           <Tabs defaultValue="polls" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className={cn(
+              "grid w-full",
+              userRole === 'admin' ? "grid-cols-3" : "grid-cols-1"
+            )}>
               <TabsTrigger value="polls">Active Polls</TabsTrigger>
               {userRole === 'admin' && (
                 <>
-                  <TabsTrigger value="my-polls">My Polls</TabsTrigger>
                   <TabsTrigger value="create">Create Poll</TabsTrigger>
+                  <TabsTrigger value="my-polls">My Polls</TabsTrigger>
                 </>
               )}
             </TabsList>
@@ -69,11 +77,11 @@ export default function DashboardPage() {
             </TabsContent>
             {userRole === 'admin' && (
               <>
-                <TabsContent value="my-polls" className="mt-6">
-                  <MyPolls />
-                </TabsContent>
                 <TabsContent value="create" className="mt-6">
                   <PollForm />
+                </TabsContent>
+                <TabsContent value="my-polls" className="mt-6">
+                  <MyPolls />
                 </TabsContent>
               </>
             )}
