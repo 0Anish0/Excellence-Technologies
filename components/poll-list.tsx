@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useRouter } from 'next/navigation'
 
 type Poll = {
   id: string
@@ -20,9 +21,6 @@ type Poll = {
   file_type: string | null
   extracted_text: string | null
   created_at: string
-  user: {
-    email: string
-  }
 }
 
 type Vote = {
@@ -41,20 +39,49 @@ export function PollList() {
   const [voting, setVoting] = useState<string | null>(null)
   const supabase = createClientComponentClient()
   const { toast } = useToast()
+  const router = useRouter()
 
   useEffect(() => {
-    fetchPolls()
-    fetchVotes()
+    checkAuthAndFetch()
   }, [])
+
+  const checkAuthAndFetch = async () => {
+    try {
+      const { data: { session }, error: authError } = await supabase.auth.getSession()
+      
+      if (authError) throw authError
+      if (!session) {
+        router.push('/auth/login')
+        return
+      }
+
+      await Promise.all([fetchPolls(), fetchVotes()])
+    } catch (error) {
+      console.error('Authentication error:', error)
+      toast({
+        title: 'Authentication Error',
+        description: 'Please log in to view polls',
+        variant: 'destructive',
+      })
+      router.push('/auth/login')
+    }
+  }
 
   const fetchPolls = async () => {
     try {
       const { data, error } = await supabase
         .from('polls')
-        .select('*, user:user_id(email)')
+        .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(error.message)
+      }
+
+      if (!data) {
+        throw new Error('No data returned from polls table')
+      }
 
       setPolls(data)
       await fetchVoteCounts(data)
@@ -62,7 +89,7 @@ export function PollList() {
       console.error('Error fetching polls:', error)
       toast({
         title: 'Failed to load polls',
-        description: 'Please try again later',
+        description: error instanceof Error ? error.message : 'Please try again later',
         variant: 'destructive',
       })
     } finally {
@@ -73,14 +100,20 @@ export function PollList() {
   const fetchVotes = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.error('No authenticated user found')
+        return
+      }
 
       const { data, error } = await supabase
         .from('votes')
         .select('*')
         .eq('user_id', user.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(error.message)
+      }
 
       const voteMap = data.reduce((acc, vote) => {
         acc[vote.poll_id] = vote
@@ -90,6 +123,11 @@ export function PollList() {
       setVotes(voteMap)
     } catch (error) {
       console.error('Error fetching votes:', error)
+      toast({
+        title: 'Failed to load votes',
+        description: error instanceof Error ? error.message : 'Please try again later',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -100,15 +138,17 @@ export function PollList() {
       for (const poll of polls) {
         const { data, error } = await supabase
           .from('votes')
-          .select('selected_option, count', { count: 'exact' })
+          .select('selected_option')
           .eq('poll_id', poll.id)
-          .groupBy('selected_option')
 
-        if (error) throw error
+        if (error) {
+          console.error('Supabase error:', error)
+          throw new Error(error.message)
+        }
 
         const optionCounts = [0, 0, 0, 0]
-        data.forEach(({ selected_option, count }) => {
-          optionCounts[selected_option - 1] = count
+        data?.forEach(({ selected_option }: { selected_option: number }) => {
+          optionCounts[selected_option - 1]++
         })
 
         counts[poll.id] = optionCounts
@@ -117,6 +157,11 @@ export function PollList() {
       setVoteCounts(counts)
     } catch (error) {
       console.error('Error fetching vote counts:', error)
+      toast({
+        title: 'Failed to load vote counts',
+        description: error instanceof Error ? error.message : 'Please try again later',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -134,7 +179,10 @@ export function PollList() {
           selected_option: optionIndex + 1,
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(error.message)
+      }
 
       // Update local state
       await fetchVotes()
@@ -148,7 +196,7 @@ export function PollList() {
       console.error('Error voting:', error)
       toast({
         title: 'Failed to record vote',
-        description: 'Please try again later',
+        description: error instanceof Error ? error.message : 'Please try again later',
         variant: 'destructive',
       })
     } finally {
@@ -178,6 +226,14 @@ export function PollList() {
     )
   }
 
+  if (polls.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No polls available yet. Be the first to create one!</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {polls.map((poll) => {
@@ -193,7 +249,7 @@ export function PollList() {
                 {poll.question}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Created by {poll.user.email}
+                Created on {new Date(poll.created_at).toLocaleDateString()}
               </p>
             </CardHeader>
             <CardContent>
@@ -235,7 +291,7 @@ export function PollList() {
               </div>
 
               {/* Results */}
-              {hasVoted && (
+              {totalVotes > 0 && (
                 <div className="mt-6">
                   <h4 className="text-sm font-medium mb-2">Results</h4>
                   <BarChart

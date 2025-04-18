@@ -112,16 +112,25 @@ export function PollForm() {
       // Upload file if exists
       if (file) {
         const fileExt = file.name.split('.').pop()
-        const fileName = `${Math.random()}.${fileExt}`.toLowerCase()
-        const filePath = `${user.id}/${fileName}`
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`.toLowerCase()
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('poll-files')
-          .upload(filePath, file)
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          })
 
-        if (uploadError) throw uploadError
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          throw new Error('Failed to upload file')
+        }
 
-        fileUrl = filePath
+        const { data: { publicUrl } } = supabase.storage
+          .from('poll-files')
+          .getPublicUrl(fileName)
+
+        fileUrl = publicUrl
         fileType = file.type
       }
 
@@ -156,7 +165,7 @@ export function PollForm() {
       console.error('Error creating poll:', error)
       toast({
         title: 'Failed to create poll',
-        description: 'Please try again later',
+        description: error instanceof Error ? error.message : 'Please try again later',
         variant: 'destructive',
       })
     } finally {

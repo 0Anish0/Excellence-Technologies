@@ -72,16 +72,18 @@ CREATE POLICY "Allow users to delete their own votes"
   TO authenticated
   USING (auth.uid() = user_id);
 
--- Create storage bucket for poll files
-INSERT INTO storage.buckets (id, name, public) VALUES ('poll-files', 'poll-files', true);
+-- Create storage bucket for poll files if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('poll-files', 'poll-files', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policy for poll files
-CREATE POLICY "Allow users to upload poll files"
+CREATE POLICY "Allow authenticated users to upload poll files"
   ON storage.objects FOR INSERT
   TO authenticated
-  WITH CHECK (bucket_id = 'poll-files' AND auth.uid()::text = (storage.foldername(name))[1]);
+  WITH CHECK (bucket_id = 'poll-files');
 
-CREATE POLICY "Allow users to view poll files"
+CREATE POLICY "Allow authenticated users to view poll files"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (bucket_id = 'poll-files');
