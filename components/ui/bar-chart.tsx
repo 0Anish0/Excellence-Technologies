@@ -1,29 +1,37 @@
 'use client'
 
-import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { cn } from '@/lib/utils'
 
-interface ChartData {
-  name: string
-  value: number
-  percentage: number
+type BarChartProps = {
+  data: {
+    name: string
+    value: number
+  }[]
+  className?: string
 }
 
-interface BarChartProps {
-  data: ChartData[]
-}
+export function BarChart({ data, className }: BarChartProps) {
+  const maxValue = Math.max(...data.map(item => item.value))
 
-export function BarChart({ data }: BarChartProps) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <RechartsBarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="name" />
-        <YAxis />
-        <Tooltip
-          formatter={(value: number) => [`${value} votes (${data.find(d => d.value === value)?.percentage.toFixed(2)}%)`]}
-        />
-        <Bar dataKey="value" fill="#8884d8" />
-      </RechartsBarChart>
-    </ResponsiveContainer>
+    <div className={cn('space-y-2', className)}>
+      {data.map((item, index) => (
+        <div key={item.name} className="space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">{item.name}</span>
+            <span className="text-muted-foreground">{item.value.toFixed(1)}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all duration-500',
+                `bg-chart-${(index % 5) + 1}`
+              )}
+              style={{ width: `${(item.value / maxValue) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 } 
