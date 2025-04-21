@@ -148,6 +148,8 @@ export function PollForm({ initialValues, mode = 'create', pollId, onCreated, on
       const reader = new FileReader()
       reader.onload = (e) => setFilePreview(e.target?.result as string)
       reader.readAsDataURL(file)
+      setExtractedText('')
+      form.setValue('description.extractedText', '')
     }
 
     // Handle text extraction
@@ -159,23 +161,16 @@ export function PollForm({ initialValues, mode = 'create', pollId, onCreated, on
         } else {
           text = await extractDocxText(file)
         }
-        
-        if (!text) {
-          toast({
-            title: 'Warning',
-            description: 'No text content could be extracted from the file.',
-            variant: 'default',
-          })
-        } else {
-          setExtractedText(text)
-          form.setValue('description.extractedText', text)
-          toast({
-            title: 'Success',
-            description: 'Text extracted successfully',
-            variant: 'default',
-          })
-        }
+        setExtractedText(text)
+        form.setValue('description.extractedText', text)
+        toast({
+          title: 'Success',
+          description: 'Text extracted successfully',
+          variant: 'default',
+        })
       } catch (error) {
+        setExtractedText('')
+        form.setValue('description.extractedText', '')
         console.error('Text extraction error:', error)
         toast({
           title: 'Text Extraction Warning',
