@@ -12,18 +12,29 @@ import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Download } from "lucide-react"
 
+type PollOption = {
+  id: string
+  poll_id: string
+  text: string
+  image_url?: string
+  created_at?: string
+  position: number
+}
+
 type Poll = {
   id: string
   user_id: string
   question: string
-  option1: string
-  option2: string
-  option3: string
-  option4: string
+  title?: string
   file_url: string | null
   file_type: string | null
   extracted_text: string | null
   created_at: string
+  poll_options?: PollOption[]
+  option1?: string
+  option2?: string
+  option3?: string
+  option4?: string
 }
 
 type Vote = {
@@ -82,7 +93,7 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
     try {
       const { data, error } = await supabase
         .from('polls')
-        .select('*')
+        .select('*, poll_options(id, poll_id, text, image_url, created_at, position)')
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -303,16 +314,29 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
   return (
     <div className="space-y-6">
       {polls.map((poll) => {
+        // Always sort poll_options by position
+        let options: PollOption[] = []
+        if (Array.isArray(poll.poll_options) && poll.poll_options.length > 0) {
+          options = [...poll.poll_options].sort((a, b) => a.position - b.position)
+        } else {
+          // fallback for legacy polls
+          options = [
+            { id: '1', poll_id: poll.id, text: poll.option1 || '', position: 1 },
+            { id: '2', poll_id: poll.id, text: poll.option2 || '', position: 2 },
+            { id: '3', poll_id: poll.id, text: poll.option3 || '', position: 3 },
+            { id: '4', poll_id: poll.id, text: poll.option4 || '', position: 4 },
+          ].filter(opt => opt.text)
+        }
         const userVote = votes[poll.id]
         const hasVoted = !!userVote
-        const voteCount = voteCounts[poll.id] || [0, 0, 0, 0]
+        const voteCount = voteCounts[poll.id] || Array(options.length).fill(0)
         const totalVotes = voteCount.reduce((a, b) => a + b, 0)
 
         return (
           <Card key={poll.id}>
             <CardHeader>
               <CardTitle className="text-lg font-medium">
-                {poll.question}
+                {poll.question || poll.title}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 Created on {new Date(poll.created_at).toLocaleDateString()}
@@ -368,22 +392,28 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
 
               {/* Options */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[poll.option1, poll.option2, poll.option3, poll.option4].map(
-                  (option, index) => (
-                    <Button
-                      key={index}
-                      variant={
-                        hasVoted && userVote.selected_option === index + 1
-                          ? 'default'
-                          : 'outline'
-                      }
-                      disabled={hasVoted || voting === poll.id}
-                      onClick={() => handleVote(poll.id, index)}
-                    >
-                      {option}
-                    </Button>
-                  )
-                )}
+                {options.map((option, index) => (
+                  <Button
+                    key={option.id}
+                    variant={
+                      hasVoted && userVote.selected_option === index + 1
+                        ? 'default'
+                        : 'outline'
+                    }
+                    disabled={hasVoted || voting === poll.id}
+                    onClick={() => handleVote(poll.id, index)}
+                    className="flex items-center justify-between"
+                  >
+                    <span>{option.text}</span>
+                    {option.image_url && (
+                      <img
+                        src={option.image_url}
+                        alt="option"
+                        className="h-8 w-8 object-cover rounded ml-2"
+                      />
+                    )}
+                  </Button>
+                ))}
               </div>
 
               {/* Results */}
@@ -396,19 +426,19 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
                     </span>
                   </div>
                   <div className="space-y-4">
-                    {[poll.option1, poll.option2, poll.option3, poll.option4].map((option, index) => {
+                    {options.map((option, index) => {
                       const votes = voteCount[index] || 0
                       const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
                       const isUserVote = hasVoted && userVote.selected_option === index + 1
                       
                       return (
-                        <div key={index} className="space-y-1">
+                        <div key={option.id} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className={cn(
                               "font-medium",
                               isUserVote && "text-primary"
                             )}>
-                              {option}
+                              {option.text}
                             </span>
                             <span className="text-muted-foreground">
                               {votes} votes ({percentage.toFixed(1)}%)
@@ -431,23 +461,23 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
               )}
 
               {/* Download Button */}
-              {poll.file_url && (
+              {poll.file_url ? (
                 <div className="mt-4">
                   <div className="flex items-center justify-between p-2 border rounded-md">
                     <span className="text-sm truncate">
-                      {poll.file_url.split('/').pop()}
+                      {typeof poll.file_url === 'string' ? poll.file_url.split('/').pop() : ''}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDownload(poll.file_url, poll.file_url.split('/').pop() || 'document')}
+                      onClick={() => poll.file_url && handleDownload(poll.file_url, typeof poll.file_url === 'string' ? poll.file_url.split('/').pop() || 'document' : 'document')}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download
                     </Button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         )

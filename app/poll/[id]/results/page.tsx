@@ -26,11 +26,11 @@ export default function PollResultsPage() {
         .single();
       if (!pollError && pollData) {
         setPoll(pollData);
-        setOptions(pollData.poll_options || []);
+        setOptions((pollData.poll_options || []).sort((a: any, b: any) => a.position - b.position));
       }
       const { data: votesData } = await supabase
         .from("votes")
-        .select("option_id")
+        .select("selected_option")
         .eq("poll_id", pollId);
       setVotes(votesData || []);
       setLoading(false);
@@ -42,15 +42,15 @@ export default function PollResultsPage() {
   if (!poll) return <div className="text-center py-8">Poll not found.</div>;
 
   const totalVotes = votes.length;
-  const getOptionVotes = (optionId: string) => votes.filter(v => v.option_id === optionId).length;
+  const getOptionVotes = (optionIdx: number) => votes.filter(v => v.selected_option === optionIdx + 1).length;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
       <Card className="p-6">
         <h1 className="text-2xl font-bold mb-2">{poll.title}</h1>
         <div className="text-sm text-muted-foreground mb-4">Results</div>
-        {options.map((opt: any) => {
-          const count = getOptionVotes(opt.id);
+        {options.map((opt: any, idx: number) => {
+          const count = getOptionVotes(idx);
           const percent = totalVotes === 0 ? 0 : Math.round((count / totalVotes) * 100);
           return (
             <div key={opt.id} className="mb-4">

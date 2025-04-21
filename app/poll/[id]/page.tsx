@@ -69,9 +69,17 @@ export default function PollDetailsPage() {
     const supabase = createClientComponentClient();
     const sessionId = getSessionId();
     const { data: { user } } = await supabase.auth.getUser();
+    // Find the selected option's index in the options array (sorted by position)
+    const sortedOptions = [...options].sort((a, b) => a.position - b.position);
+    const selectedIndex = sortedOptions.findIndex(opt => opt.id === selected);
+    if (selectedIndex === -1) {
+      toast({ title: "Invalid option selected.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
     const votePayload: any = {
       poll_id: pollId,
-      option_id: selected,
+      selected_option: selectedIndex + 1,
     };
     if (user) {
       votePayload.user_id = user.id;
