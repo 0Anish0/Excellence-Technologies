@@ -56,6 +56,15 @@ export default function PollDetailsPage() {
       }
       const { data: votes, error } = await voteQuery;
       if (!error && votes && votes.length > 0) setVoted(true);
+
+      // --- LocalStorage logic for unauthenticated users ---
+      if (!user) {
+        const localVote = localStorage.getItem(`poll-vote-${pollId}`);
+        if (localVote) {
+          setSelected(localVote);
+          setVoted(true);
+        }
+      }
     };
     if (pollId) checkVoted();
   }, [pollId]);
@@ -89,6 +98,10 @@ export default function PollDetailsPage() {
     const { error } = await supabase.from("votes").insert([votePayload]);
     setLoading(false);
     if (!error) {
+      // --- Save vote in localStorage for unauthenticated users ---
+      if (!user) {
+        localStorage.setItem(`poll-vote-${pollId}`, selected);
+      }
       toast({ title: "Vote submitted!", variant: "default" });
       router.push(`/poll/${pollId}/results`);
     } else {
@@ -119,10 +132,10 @@ export default function PollDetailsPage() {
           </div>
         )}
         <div className="mb-4">
-          <RadioGroup value={selected} onValueChange={setSelected} className="space-y-2">
+          <RadioGroup value={selected} onValueChange={setSelected} className="space-y-2" disabled={voted}>
             {options.map((opt: any) => (
               <div key={opt.id} className="flex items-center gap-2">
-                <RadioGroupItem value={opt.id} id={`option-${opt.id}`} />
+                <RadioGroupItem value={opt.id} id={`option-${opt.id}`} disabled={voted} />
                 <label htmlFor={`option-${opt.id}`} className="cursor-pointer">
                   {opt.text}
                 </label>

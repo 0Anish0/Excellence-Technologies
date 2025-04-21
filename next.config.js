@@ -6,9 +6,9 @@ const nextConfig = {
     domains: ['localhost'],
   },
   experimental: {
-    htmlAttributes: {
-      body: ['cz-shortcut-listen']
-    }
+    // htmlAttributes: {
+    //   body: ['cz-shortcut-listen']
+    // }
   },
   async headers() {
     return [
