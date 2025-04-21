@@ -7,15 +7,20 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res })
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Check if the route is protected (not auth routes)
-  const isAuthRoute = req.nextUrl.pathname.startsWith('/auth')
-  
-  if (!session && !isAuthRoute) {
+  const { pathname } = req.nextUrl;
+  // Allow public access to homepage, poll routes, and auth routes
+  const isPublicRoute = (
+    pathname === '/' ||
+    pathname.startsWith('/poll') ||
+    pathname.startsWith('/auth')
+  );
+
+  if (!session && !isPublicRoute) {
     // Redirect to login if accessing protected route without session
     return NextResponse.redirect(new URL('/auth/login', req.url))
   }
 
-  if (session && isAuthRoute) {
+  if (session && pathname.startsWith('/auth')) {
     // Redirect to dashboard if accessing auth routes with session
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }

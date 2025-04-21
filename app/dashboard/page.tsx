@@ -9,7 +9,7 @@ import { MyPolls } from '@/components/my-polls'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import AdminDashboard from '../../components/aminDashboard'
+import AdminDashboard from '../../components/adminDashboard'
 
 type UserRole = 'user' | 'admin'
 
