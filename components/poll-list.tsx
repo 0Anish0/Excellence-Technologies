@@ -34,7 +34,7 @@ type Vote = {
   voted_at: string
 }
 
-export function PollList() {
+export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
   const [polls, setPolls] = useState<Poll[]>([])
   const [votes, setVotes] = useState<{ [key: string]: Vote }>({})
   const [voteCounts, setVoteCounts] = useState<{ [key: string]: number[] }>({})
@@ -45,8 +45,16 @@ export function PollList() {
   const router = useRouter()
 
   useEffect(() => {
-    checkAuthAndFetch()
-  }, [])
+    if (singlePoll) {
+      setPolls([singlePoll]);
+      setLoading(false);
+      // Optionally fetch votes for this poll only
+      fetchVoteCounts([singlePoll]);
+      fetchVotes();
+    } else {
+      checkAuthAndFetch();
+    }
+  }, [singlePoll]);
 
   const checkAuthAndFetch = async () => {
     try {
