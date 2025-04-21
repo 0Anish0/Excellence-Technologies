@@ -5,8 +5,8 @@ import { Table } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { PollForm, PollFormProps } from '@/components/poll-form';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { PollForm } from '@/components/poll-form';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { PollList } from '@/components/poll-list';
 
 interface Poll {
@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [editPoll, setEditPoll] = useState<Poll | null>(null);
   const [showView, setShowView] = useState(false);
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -73,8 +74,15 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async (pollId: string) => {
+    setLoading(true);
+    // Delete related votes
+    await supabase.from('votes').delete().eq('poll_id', pollId);
+    // Delete related poll options
+    await supabase.from('poll_options').delete().eq('poll_id', pollId);
+    // Delete the poll itself
     await supabase.from('polls').delete().eq('id', pollId);
-    fetchPolls();
+    await fetchPolls();
+    setLoading(false);
   };
 
   // For edit: set poll and open modal
@@ -145,14 +153,17 @@ export default function AdminDashboard() {
                   <td className="px-4 py-2">{voteCounts[poll.id] ?? 0}</td>
                   <td className="px-4 py-2">{new Date(poll.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-2 flex gap-2">
-                    <Dialog open={!!editPoll && editPoll.id === poll.id} onOpenChange={() => setEditPoll(null)}>
+                    <Dialog
+                      open={!!editPoll && editPoll.id === poll.id}
+                      onOpenChange={(open) => setEditPoll(open ? poll : null)}
+                    >
                       <DialogTrigger asChild>
                         <Button size="sm" variant="outline" onClick={() => handleEdit(poll)}>Edit</Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl w-full">
                         {editPoll && editPoll.id === poll.id && (
                           <PollForm
-                            onCreated={handlePollChanged}
+                            onUpdated={handlePollChanged}
                             initialValues={{
                               basicDetails: {
                                 title: editPoll.title,
@@ -165,12 +176,40 @@ export default function AdminDashboard() {
                                 extractedText: editPoll.description_text || '',
                               },
                             }}
+                            pollId={editPoll.id}
                             mode="edit"
                           />
                         )}
                       </DialogContent>
                     </Dialog>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(poll.id)}>Delete</Button>
+                    <Dialog
+                      open={!!confirmDeleteId && confirmDeleteId === poll.id}
+                      onOpenChange={(open) => setConfirmDeleteId(open ? poll.id : null)}
+                    >
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="destructive">Delete</Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md w-full">
+                        <DialogTitle>Delete Poll</DialogTitle>
+                        <DialogDescription>This action cannot be undone. Are you sure you want to delete this poll?</DialogDescription>
+                        <div className="text-lg font-semibold mb-4">Are you sure you want to delete this poll?</div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                          <Button
+                            variant="destructive"
+                            onClick={async () => {
+                              console.log('Dialog Delete button clicked, confirmDeleteId:', confirmDeleteId);
+                              if (confirmDeleteId) {
+                                await handleDelete(confirmDeleteId);
+                                setConfirmDeleteId(null);
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                     <Dialog open={showView && selectedPoll?.id === poll.id} onOpenChange={setShowView}>
                       <DialogTrigger asChild>
                         <Button size="sm" variant="secondary" onClick={() => handleView(poll)}>View Results</Button>

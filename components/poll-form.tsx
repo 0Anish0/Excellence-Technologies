@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -65,7 +65,15 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-export function PollForm() {
+export interface PollFormProps {
+  initialValues?: FormValues;
+  mode?: 'create' | 'edit';
+  pollId?: string;
+  onCreated?: () => void;
+  onUpdated?: () => void;
+}
+
+export function PollForm({ initialValues, mode = 'create', pollId, onCreated, onUpdated }: PollFormProps) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [filePreview, setFilePreview] = useState<string | null>(null)
@@ -76,7 +84,7 @@ export function PollForm() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: initialValues || {
       basicDetails: {
         title: '',
         category: 'Politics',
@@ -92,6 +100,13 @@ export function PollForm() {
       },
     },
   })
+
+  useEffect(() => {
+    if (initialValues) {
+      form.reset(initialValues)
+      setExtractedText(initialValues.description?.extractedText || '')
+    }
+  }, [initialValues])
 
   const handleDescriptionFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return
@@ -282,82 +297,117 @@ export function PollForm() {
         })
       )
 
-      // Create poll
-      const pollDataToInsert = {
-        user_id: user.id,
-        title: values.basicDetails.title,
-        question: values.basicDetails.title,
-        category: values.basicDetails.category,
-        end_date: values.basicDetails.endDate,
-        description_file_url: descriptionFileUrl,
-        description_file_type: descriptionFileType,
-        description_text: values.description.extractedText,
-        status: 'active',
-      }
-      
-      console.log('Creating poll with data:', pollDataToInsert)
+      if (mode === 'edit' && pollId) {
+        // Update poll
+        const { error: pollError } = await supabase
+          .from('polls')
+          .update({
+            title: values.basicDetails.title,
+            question: values.basicDetails.title,
+            category: values.basicDetails.category,
+            end_date: values.basicDetails.endDate,
+            description_file_url: descriptionFileUrl,
+            description_file_type: descriptionFileType,
+            description_text: values.description.extractedText,
+            status: 'active',
+          })
+          .eq('id', pollId)
+        if (pollError) throw pollError
 
-      const { data: pollData, error: pollError } = await supabase
-        .from('polls')
-        .insert(pollDataToInsert)
-        .select('*')
-        .single()
+        // Delete old options and insert new ones
+        await supabase.from('poll_options').delete().eq('poll_id', pollId)
+        const optionsToInsert = values.options.map((option, index) => ({
+          poll_id: pollId,
+          text: option.text,
+          image_url: imageUrls[index],
+          position: index + 1,
+        }))
+        const { error: optionsError } = await supabase
+          .from('poll_options')
+          .insert(optionsToInsert)
+        if (optionsError) throw optionsError
 
-      if (pollError) {
-        console.error('Error creating poll:', {
-          error: pollError,
-          message: pollError.message,
-          details: pollError.details,
-          hint: pollError.hint,
-          code: pollError.code
+        toast({ title: 'Poll updated successfully', variant: 'default' })
+        if (onUpdated) onUpdated()
+      } else {
+        // Create poll
+        const pollDataToInsert = {
+          user_id: user.id,
+          title: values.basicDetails.title,
+          question: values.basicDetails.title,
+          category: values.basicDetails.category,
+          end_date: values.basicDetails.endDate,
+          description_file_url: descriptionFileUrl,
+          description_file_type: descriptionFileType,
+          description_text: values.description.extractedText,
+          status: 'active',
+        }
+        
+        console.log('Creating poll with data:', pollDataToInsert)
+
+        const { data: pollData, error: pollError } = await supabase
+          .from('polls')
+          .insert(pollDataToInsert)
+          .select('*')
+          .single()
+
+        if (pollError) {
+          console.error('Error creating poll:', {
+            error: pollError,
+            message: pollError.message,
+            details: pollError.details,
+            hint: pollError.hint,
+            code: pollError.code
+          })
+          throw pollError
+        }
+        console.log('Poll created successfully. Response data:', pollData)
+
+        // Create poll options
+        const optionsToInsert = values.options.map((option, index) => ({
+          poll_id: pollData.id,
+          text: option.text,
+          image_url: imageUrls[index],
+          position: index + 1,  // Store the order of options
+        }))
+        
+        console.log('Creating poll options:', optionsToInsert)
+
+        const { data: insertedOptions, error: optionsError } = await supabase
+          .from('poll_options')
+          .insert(optionsToInsert)
+          .select('*')
+
+        if (optionsError) {
+          console.error('Error creating poll options:', {
+            error: optionsError,
+            message: optionsError.message,
+            details: optionsError.details,
+            hint: optionsError.hint,
+            code: optionsError.code
+          })
+          // If options creation fails, delete the poll to maintain consistency
+          await supabase.from('polls').delete().eq('id', pollData.id)
+          throw optionsError
+        }
+        console.log('Poll options created successfully. Response data:', insertedOptions)
+
+        toast({
+          title: 'Poll created successfully',
+          variant: 'default',
         })
-        throw pollError
+        if (onCreated) onCreated()
+
+        // Reset form
+        form.reset()
+        setStep(1)
+        setFilePreview(null)
+        setExtractedText('')
       }
-      console.log('Poll created successfully. Response data:', pollData)
-
-      // Create poll options
-      const optionsToInsert = values.options.map((option, index) => ({
-        poll_id: pollData.id,
-        text: option.text,
-        image_url: imageUrls[index],
-        position: index + 1,  // Store the order of options
-      }))
-      
-      console.log('Creating poll options:', optionsToInsert)
-
-      const { data: insertedOptions, error: optionsError } = await supabase
-        .from('poll_options')
-        .insert(optionsToInsert)
-        .select('*')
-
-      if (optionsError) {
-        console.error('Error creating poll options:', {
-          error: optionsError,
-          message: optionsError.message,
-          details: optionsError.details,
-          hint: optionsError.hint,
-          code: optionsError.code
-        })
-        // If options creation fails, delete the poll to maintain consistency
-        await supabase.from('polls').delete().eq('id', pollData.id)
-        throw optionsError
-      }
-      console.log('Poll options created successfully. Response data:', insertedOptions)
-
-      toast({
-        title: 'Poll created successfully',
-        variant: 'default',
-      })
-
-      // Reset form
-      form.reset()
-      setStep(1)
-      setFilePreview(null)
-      setExtractedText('')
     } catch (error) {
       console.error('Error creating poll:', error)
       toast({
-        title: 'Failed to create poll',
+        title: mode === 'edit' ? 'Failed to update poll' : 'Failed to create poll',
         description: error instanceof Error ? error.message : 'Please try again later',
         variant: 'destructive',
       })
@@ -401,7 +451,7 @@ export function PollForm() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {step === 1 && (
-              <div className="space-y-4">
+              <div className="space-y-4 h-[50vh] overflow-y-auto pr-2">
                 <FormField
                   control={form.control}
                   name="basicDetails.title"
@@ -486,7 +536,7 @@ export function PollForm() {
             )}
 
             {step === 2 && (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                 {form.watch('options').map((_, index) => (
                   <div key={index} className="space-y-4 border p-4 rounded-lg">
                     <FormField
@@ -574,7 +624,7 @@ export function PollForm() {
             )}
 
             {step === 3 && (
-              <div className="space-y-6">
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                 <h3 className="text-lg font-semibold">Review Your Poll</h3>
                 
                 <div className="space-y-4 border rounded-lg p-4">
@@ -599,55 +649,13 @@ export function PollForm() {
                             <img
                               src={URL.createObjectURL(option.image)}
                               alt={`Option ${index + 1} preview`}
-                              className="mt-2 max-w-[200px] rounded"
+                              className="max-w-full h-auto max-h-64 rounded"
                             />
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="space-y-4 border rounded-lg p-4">
-                  <h4 className="font-medium">Description</h4>
-                  {form.watch('description.file') ? (
-                    <div className="space-y-4">
-                      <p><strong>File Name:</strong> {fileName}</p>
-                      {form.watch('description.file').type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const url = URL.createObjectURL(form.watch('description.file'))
-                            window.open(url, '_blank')
-                          }}
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          Download DOCX
-                        </Button>
-                      )}
-                      {filePreview && (
-                        <div className="mt-4">
-                          <img
-                            src={filePreview}
-                            alt="Preview"
-                            className="max-w-full h-auto max-h-64 rounded"
-                          />
-                        </div>
-                      )}
-                      {extractedText && (
-                        <div className="mt-4">
-                          <FormLabel>Extracted Text</FormLabel>
-                          <Textarea
-                            value={extractedText}
-                            readOnly
-                            className="h-32"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No description file attached</p>
-                  )}
                 </div>
               </div>
             )}
@@ -656,33 +664,20 @@ export function PollForm() {
       </CardContent>
       <CardFooter className="flex justify-between">
         {step > 1 && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={prevStep}
-            disabled={isLoading}
-          >
-            Back
+          <Button variant="outline" onClick={prevStep}>
+            Previous
           </Button>
         )}
         {step < 3 ? (
-          <Button
-            type="button"
-            onClick={nextStep}
-            disabled={isLoading}
-          >
+          <Button onClick={nextStep}>
             Next
           </Button>
         ) : (
-          <Button
-            type="submit"
-            onClick={form.handleSubmit(onSubmit)}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Creating...' : 'Create Poll'}
+          <Button type="submit" onClick={form.handleSubmit(onSubmit)}>
+            Submit
           </Button>
         )}
       </CardFooter>
     </Card>
   )
-} 
+}
