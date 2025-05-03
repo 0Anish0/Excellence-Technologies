@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@hassanmojab/react-modern-calendar-datepicker": "^3.1.7",
     "@hookform/resolvers": "^3.10.0",
     "@pdf-lib/standard-fonts": "^1.0.0",
@@ -33,6 +34,7 @@
     "lucide-react": "^0.291.0",
     "mammoth": "^1.9.0",
     "next": "^14.1.0",
+    "openai": "^4.97.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^2.16.105",
