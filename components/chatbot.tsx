@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
-import { Dialog, DialogTrigger, DialogContent } from './ui/dialog';
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -9,6 +9,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { MessageCircle } from 'lucide-react';
 
 const BOT_NAME = 'PollBot';
+const MAX_RETRIES = 1; // Only retry once
 
 function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
   return (
@@ -29,12 +30,13 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
   );
 }
 
-export default function Chatbot() {
+export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void }) {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -87,29 +89,94 @@ export default function Chatbot() {
         }),
         headers: { 'Content-Type': 'application/json' }
       });
-      const { message, functionResult, formattedResult, history } = await res.json();
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          if (retryCount < MAX_RETRIES) {
+            setRetryCount(prev => prev + 1);
+            toast({
+              title: 'High Demand',
+              description: 'The service is busy. Retrying in a minute...',
+              duration: 3000
+            });
+            setTimeout(() => handleSend(), 60000); // 1 minute
+            return;
+          } else {
+            // After max retries, show generic error and stop
+            const errorMessage = "Sorry, we're currently experiencing high demand. Please try again later.";
+            toast({
+              title: 'Service Busy',
+              description: errorMessage,
+              variant: 'destructive'
+            });
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: errorMessage
+            }]);
+            setRetryCount(0); // Reset for next user message
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Show error message from the server
+        const errorMessage = data.message || 'Failed to get response';
+        toast({
+          title: 'Error',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: errorMessage
+        }]);
+        setLoading(false);
+        return;
+      }
+
+      setRetryCount(0); // Reset retry count on success
 
       let newMessages = [...messages];
-      if (message?.content) {
-        newMessages = [...newMessages, { role: 'assistant', content: message.content }];
+      if (data.message?.content) {
+        newMessages = [...newMessages, { role: 'assistant', content: data.message.content }];
       }
-      if (formattedResult) {
-        newMessages = [...newMessages, { role: 'assistant', content: formattedResult }];
+      if (data.formattedResult) {
+        newMessages = [...newMessages, { role: 'assistant', content: data.formattedResult }];
       }
-      // If history is present and the last message matches the last local message, use it
       if (
-        history &&
-        Array.isArray(history) &&
-        history.length > 0 &&
+        data.history &&
+        Array.isArray(data.history) &&
+        data.history.length > 0 &&
         newMessages.length > 0 &&
-        history[history.length - 1].content === newMessages[newMessages.length - 1].content
+        data.history[data.history.length - 1].content === newMessages[newMessages.length - 1].content
       ) {
-        setMessages(history);
+        setMessages(data.history);
       } else {
         setMessages(newMessages);
       }
-    } catch (err) {
-      toast({ title: 'Error', description: 'Failed to contact chatbot', variant: 'destructive' });
+
+      // Call onVoteSuccess if the vote was recorded
+      if (
+        (data.formattedResult && data.formattedResult.toLowerCase().includes('your vote has been recorded')) ||
+        (data.message?.content && data.message.content.toLowerCase().includes('your vote has been recorded'))
+      ) {
+        if (onVoteSuccess) onVoteSuccess();
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to contact chatbot';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive'
+      });
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: errorMessage
+      }]);
     } finally {
       setLoading(false);
     }
@@ -129,6 +196,10 @@ export default function Chatbot() {
         </Button>
       </DialogTrigger>
       <DialogContent className="p-0 max-w-md w-full rounded-2xl overflow-hidden flex flex-col">
+        <DialogTitle className="sr-only">Chat with PollBot</DialogTitle>
+        <DialogDescription className="sr-only">
+          Chat interface for interacting with PollBot about polls and voting
+        </DialogDescription>
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b bg-primary/90">
           <Avatar className="h-9 w-9">

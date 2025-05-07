@@ -45,7 +45,7 @@ type Vote = {
   voted_at: string
 }
 
-export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
+export function PollList({ singlePoll, refreshFlag }: { singlePoll?: any, refreshFlag?: boolean } = {}) {
   const [polls, setPolls] = useState<Poll[]>([])
   const [votes, setVotes] = useState<{ [key: string]: Vote }>({})
   const [voteCounts, setVoteCounts] = useState<{ [key: string]: number[] }>({})
@@ -65,7 +65,7 @@ export function PollList({ singlePoll }: { singlePoll?: any } = {}) {
     } else {
       checkAuthAndFetch();
     }
-  }, [singlePoll]);
+  }, [singlePoll, refreshFlag]);
 
   const checkAuthAndFetch = async () => {
     try {
