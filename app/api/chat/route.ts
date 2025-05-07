@@ -149,6 +149,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Only process if the last message is from the user
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      logDebug('No new user message to process. Returning current history.');
+      return NextResponse.json({
+        message: { role: 'assistant', content: '' },
+        functionResult: null,
+        formattedResult: null,
+        history,
+      });
+    }
+
     // Add the new user message to the history
     const lastUserMessage = messages[messages.length - 1];
     if (lastUserMessage) {
