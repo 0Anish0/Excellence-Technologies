@@ -13,7 +13,7 @@ import {
 } from './dropdown-menu'
 import { useToast } from './use-toast'
 
-export function Header() {
+export function Header({ children }: { children?: React.ReactNode }) {
   const [user, setUser] = useState<any>(null)
   const supabase = createClientComponentClient()
   const router = useRouter()
@@ -42,7 +42,7 @@ export function Header() {
     <header className="border-b">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Poll App</h1>
-        
+        {children}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
