@@ -9,12 +9,15 @@ import { MyPolls } from '@/components/my-polls'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import AdminDashboard from '../../components/adminDashboard'
+import Chatbot from '@/components/chatbot'
 
 type UserRole = 'user' | 'admin'
 
 export default function DashboardPage() {
   const [userRole, setUserRole] = useState<UserRole>('user')
   const [loading, setLoading] = useState(true)
+  const [refreshFlag, setRefreshFlag] = useState(false)
   const supabase = createClientComponentClient()
   const router = useRouter()
 
@@ -50,6 +53,8 @@ export default function DashboardPage() {
     }
   }
 
+  const refreshPolls = () => setRefreshFlag(f => !f)
+
   if (loading) {
     return <div>Loading...</div>
   }
@@ -59,34 +64,10 @@ export default function DashboardPage() {
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
-          <Tabs defaultValue="polls" className="w-full">
-            <TabsList className={cn(
-              "grid w-full",
-              userRole === 'admin' ? "grid-cols-3" : "grid-cols-1"
-            )}>
-              <TabsTrigger value="polls">Active Polls</TabsTrigger>
-              {userRole === 'admin' && (
-                <>
-                  <TabsTrigger value="create">Create Poll</TabsTrigger>
-                  <TabsTrigger value="my-polls">My Polls</TabsTrigger>
-                </>
-              )}
-            </TabsList>
-            <TabsContent value="polls" className="mt-6">
-              <PollList />
-            </TabsContent>
-            {userRole === 'admin' && (
-              <>
-                <TabsContent value="create" className="mt-6">
-                  <PollForm />
-                </TabsContent>
-                <TabsContent value="my-polls" className="mt-6">
-                  <MyPolls />
-                </TabsContent>
-              </>
-            )}
-          </Tabs>
+          {userRole === 'user' && <PollList refreshFlag={refreshFlag} />}
+          {userRole === 'admin' && <AdminDashboard />}
         </div>
+        <Chatbot onVoteSuccess={refreshPolls} />
       </main>
     </div>
   )
