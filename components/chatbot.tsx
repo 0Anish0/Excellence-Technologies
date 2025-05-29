@@ -597,6 +597,16 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
           <Button
             variant="outline"
             size="sm"
+            onClick={() => handleQuickAction('show recent 3 polls')}
+            className="text-xs"
+            disabled={loading}
+          >
+            Recent Polls
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleQuickAction('show polls I voted on')}
             onClick={() => handleQuickAction('check my votes')}
             className="text-xs"
             disabled={loading}
@@ -687,6 +697,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
           <MessageCircle className="h-5 w-5" />
         </Button>
       </DialogTrigger>
+      <DialogContent className="w-[100%] h-[90vh] max-w-[1250px] flex flex-col p-0">
       <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
         <div className="flex items-center justify-between p-4 border-b bg-primary text-primary-foreground">
           <div className="flex items-center gap-2">
