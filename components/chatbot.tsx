@@ -607,6 +607,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
             variant="outline"
             size="sm"
             onClick={() => handleQuickAction('show polls I voted on')}
+            onClick={() => handleQuickAction('check my votes')}
             className="text-xs"
             disabled={loading}
           >
@@ -697,6 +698,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[100%] h-[90vh] max-w-[1250px] flex flex-col p-0">
+      <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
         <div className="flex items-center justify-between p-4 border-b bg-primary text-primary-foreground">
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
