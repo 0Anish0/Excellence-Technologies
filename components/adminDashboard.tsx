@@ -167,7 +167,7 @@ export default function AdminDashboard() {
                             initialValues={{
                               basicDetails: {
                                 title: editPoll.title,
-                                category: editPoll.category,
+                                category: editPoll.category as "Politics" | "Technology" | "Entertainment" | "Other",
                                 endDate: editPoll.end_date ? new Date(editPoll.end_date) : new Date(),
                               },
                               options: editPoll.poll_options?.map((opt: any) => ({ text: opt.text, image: null })) || [],
