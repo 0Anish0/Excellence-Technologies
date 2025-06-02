@@ -15,13 +15,13 @@ export interface PollCreationState {
 }
 
 export interface PollUpdateState {
-  step: 'select_poll' | 'select_field' | 'update_title' | 'update_options' | 'confirm_update';
+  step: 'select_poll' | 'select_field' | 'update_title' | 'update_options' | 'update_category' | 'confirm_update';
   userId: string;
   pollId?: string;
   pollTitle?: string;
   field?: 'title' | 'options' | 'end_date' | 'category';
+  currentOptions?: any[];
   newValue?: any;
-  currentOptions?: Array<{id: string, text: string, position: number}>;
   updateType?: 'added' | 'replaced';
 }
 
