@@ -14,6 +14,17 @@ export interface PollCreationState {
   suggestedOptions?: string[];
 }
 
+export interface PollUpdateState {
+  step: 'select_poll' | 'select_field' | 'update_title' | 'update_options' | 'confirm_update';
+  userId: string;
+  pollId?: string;
+  pollTitle?: string;
+  field?: 'title' | 'options' | 'end_date' | 'category';
+  newValue?: any;
+  currentOptions?: Array<{id: string, text: string, position: number}>;
+  updateType?: 'added' | 'replaced';
+}
+
 export interface ChatResponse {
   message: ChatMessage;
   functionResult: any;
@@ -23,19 +34,30 @@ export interface ChatResponse {
 
 export type Intent = 
   | 'greeting'
-  | 'list_polls'
-  | 'list_recent_polls'
-  | 'list_user_voted_polls'
-  | 'get_poll_options'
-  | 'vote'
   | 'create_poll'
   | 'create_poll_category'
   | 'create_poll_topic'
   | 'create_poll_options'
   | 'create_poll_confirm'
   | 'create_poll_restart'
+  | 'continue_poll_creation'
+  | 'list_polls'
+  | 'list_recent_polls'
+  | 'list_user_voted_polls'
+  | 'list_my_polls'
+  | 'vote'
+  | 'get_poll_options'
   | 'suggest_options'
   | 'check_vote_status'
   | 'view_poll_results'
-  | 'continue_poll_creation'
+  | 'update_poll'
+  | 'update_poll_select'
+  | 'update_poll_field'
+  | 'update_poll_title'
+  | 'update_poll_options'
+  | 'update_poll_confirm'
+  | 'add_poll_options'
+  | 'clarify_poll_options_intent'
+  | 'delete_poll'
+  | 'poll_analytics'
   | 'general'; 
