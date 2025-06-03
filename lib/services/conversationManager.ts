@@ -63,6 +63,19 @@ export class ConversationManager {
       // Process the intent through the flow controller
       const result = await flowController.handleIntent(intent, context);
 
+      // Update context state if there are context updates
+      if (result.contextUpdate && userId) {
+        if (result.contextUpdate.currentState) {
+          await this.contextManager.setState(userId, result.contextUpdate.currentState);
+        }
+        if (result.contextUpdate.sessionData) {
+          await this.contextManager.updateSessionData(userId, result.contextUpdate.sessionData);
+        }
+      }
+
+      // Update last intent
+      await this.contextManager.updateLastIntent(userId, intent);
+
       // Generate natural language response
       const response = await this.responseGenerator.generateResponse(
         result,

@@ -25,15 +25,6 @@ export async function POST(req: NextRequest) {
     // Process the conversation using the new architecture
     const response = await conversationManager.processMessage(messages, userId);
 
-    // Update context state if needed
-    if (response.functionResult?.contextUpdate && userId) {
-      const contextManager = new ContextManager();
-      const context = contextManager.getContext(userId);
-      if (context && response.functionResult.contextUpdate.currentState) {
-        await contextManager.setState(userId, response.functionResult.contextUpdate.currentState);
-      }
-    }
-
     logger.debug('Generated response with new architecture');
     return NextResponse.json(response);
 
