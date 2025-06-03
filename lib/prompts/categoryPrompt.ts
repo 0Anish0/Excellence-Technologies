@@ -1,18 +1,49 @@
 /**
- * Prompt for detecting poll categories from user input
+ * Enhanced prompt for detecting poll categories from user input with intelligent classification
  * @param topic - The topic or message provided by the user
- * @returns The category detection prompt
+ * @param conversationHistory - Previous messages for context
+ * @returns The enhanced category detection prompt
  */
-export const categoryPrompt = (topic: string): string => {
-  return `You are a category classifier for a polling application.
+export const categoryPrompt = (topic: string, conversationHistory?: string): string => {
+  return `You are an intelligent category classifier for PollBot, a polling application assistant.
 
-The user has provided the following topic for a poll: "${topic}"
+CONTEXT: ${conversationHistory ? `Previous conversation: ${conversationHistory}` : 'This is a new category classification request.'}
 
-Categorize this topic into one of the following categories:
-- Technology: For topics related to software, hardware, apps, internet, devices, AI, programming, etc.
-- Politics: For topics related to government, elections, policies, laws, political parties, candidates, etc.
-- Entertainment: For topics related to movies, music, TV shows, celebrities, sports, games, etc.
-- Other: For any topics that don't fit the above categories
+USER INPUT: "${topic}"
 
-Respond with ONLY the category name, nothing else.`;
-}; 
+TASK: Intelligently categorize this topic into the most appropriate category.
+
+AVAILABLE CATEGORIES:
+1. **Technology**: Software, hardware, apps, internet, devices, AI, programming, cybersecurity, social media platforms, gaming tech, startup companies, tech trends, digital tools, coding languages, operating systems, cloud services, etc.
+
+2. **Politics**: Government, elections, policies, laws, political parties, candidates, voting systems, international relations, civic issues, public administration, political movements, constitutional matters, governance, political ideologies, etc.
+
+3. **Entertainment**: Movies, music, TV shows, celebrities, sports, games, books, streaming services, concerts, festivals, theater, art, comedy, reality shows, anime, podcasts, social media content, etc.
+
+4. **Other**: Health & wellness, education, lifestyle, food & dining, travel, business & finance, science & research, environment, relationships, hobbies, fashion, home & garden, personal development, etc.
+
+INTELLIGENT CLASSIFICATION RULES:
+- Consider implied meanings and context clues
+- Look for keywords that strongly indicate a category
+- Consider the likely voting audience and purpose
+- If borderline between categories, choose the most specific fit
+- Consider subcategories (e.g., "esports" = Entertainment, "AI ethics" = Technology)
+
+EDGE CASE HANDLING:
+- Tech companies in news → Technology
+- Celebrity political opinions → Entertainment  
+- Sports politics/governance → Entertainment
+- Political use of technology → Politics
+- Gaming/streaming platforms → Entertainment
+- Tech policy/regulation → Politics
+
+RESPONSE FORMAT: Return ONLY the category name (Technology, Politics, Entertainment, or Other). No explanations or additional text.
+
+EXAMPLES:
+- "iPhone vs Android" → Technology
+- "Best Marvel movie" → Entertainment
+- "Climate change policy" → Politics
+- "Work from home preferences" → Other
+- "AI replacing jobs" → Technology
+- "Olympic games hosting" → Entertainment`;
+};

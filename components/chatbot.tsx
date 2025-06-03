@@ -38,6 +38,118 @@ function parsePolls(message: string) {
     return { type: 'polls', polls };
   }
 
+  // Parse recent polls
+  const recentPollsMatch = message.match(/Here are the (\d+) most recent polls:\n([\s\S]*)/);
+  if (recentPollsMatch) {
+    const count = recentPollsMatch[1];
+    const pollsText = recentPollsMatch[2];
+    const polls = pollsText.split(/\n\n/).map(poll => {
+      const lines = poll.split('\n').map(l => l.trim());
+      const title = lines[0]?.replace(/^\d+\.\s*/, '');
+      const id = lines.find(l => l.startsWith('Poll ID:'))?.replace('Poll ID: ', '');
+      const category = lines.find(l => l.startsWith('Category:'))?.replace('Category: ', '');
+      const end = lines.find(l => l.startsWith('Ends:'))?.replace('Ends: ', '');
+      const status = lines.find(l => l.startsWith('Status:'))?.replace('Status: ', '');
+
+      return { title, id, category, end, status };
+    }).filter(poll => poll.title && poll.id);
+
+    return { type: 'recent_polls', polls, count };
+  }
+
+  // Parse user's polls for updating
+  const updatePollsMatch = message.match(/Here are your polls that you can update:\n\n([\s\S]*?)(?=\n\nPlease reply|$)/);
+  if (updatePollsMatch) {
+    const pollsText = updatePollsMatch[1];
+    const polls = pollsText.split(/\n\n/).map(poll => {
+      const lines = poll.split('\n').map(l => l.trim());
+      const title = lines[0]?.replace(/^\d+\.\s*/, '');
+      const id = lines.find(l => l.startsWith('ID:'))?.replace('ID: ', '');
+      const category = lines.find(l => l.startsWith('Category:'))?.replace('Category: ', '');
+      const status = lines.find(l => l.startsWith('Status:'))?.replace('Status: ', '');
+      const ends = lines.find(l => l.startsWith('Ends:'))?.replace('Ends: ', '');
+
+      return { title, id, category, status, ends };
+    }).filter(poll => poll.title && poll.id);
+
+    return { type: 'update_polls', polls };
+  }
+
+  // Parse my polls list
+  const myPollsMatch = message.match(/Here are your polls \((\d+) total\):\n\n([\s\S]*)/);
+  if (myPollsMatch) {
+    const total = myPollsMatch[1];
+    const pollsText = myPollsMatch[2];
+    const polls = pollsText.split(/\n\n/).map(poll => {
+      const lines = poll.split('\n').map(l => l.trim());
+      const title = lines[0]?.replace(/^\d+\.\s*/, '');
+      const id = lines.find(l => l.startsWith('ID:'))?.replace('ID: ', '');
+      const category = lines.find(l => l.startsWith('Category:'))?.replace('Category: ', '');
+      const status = lines.find(l => l.startsWith('Status:'))?.replace('Status: ', '');
+      const created = lines.find(l => l.startsWith('Created:'))?.replace('Created: ', '');
+      const ends = lines.find(l => l.startsWith('Ends:'))?.replace('Ends: ', '');
+
+      return { title, id, category, status, created, ends };
+    }).filter(poll => poll.title && poll.id);
+
+    return { type: 'my_polls', polls, total };
+  }
+
+  // Parse poll analytics
+  const analyticsMatch = message.match(/📊 \*\*Your Poll Analytics\*\*\n\n\*\*Overview:\*\*\n([\s\S]*?)\n\n\*\*Individual Poll Performance:\*\*\n([\s\S]*)/);
+  if (analyticsMatch) {
+    const overviewText = analyticsMatch[1];
+    const performanceText = analyticsMatch[2];
+    
+    const overview: Record<string, number> = {};
+    overviewText.split('\n').forEach(line => {
+      const match = line.match(/• (.+): (\d+)/);
+      if (match) {
+        overview[match[1]] = parseInt(match[2]);
+      }
+    });
+
+    const polls = performanceText.split(/\n\n/).map(poll => {
+      const lines = poll.split('\n').map(l => l.trim());
+      const title = lines[0]?.replace(/^\d+\.\s*/, '');
+      const votes = lines.find(l => l.includes('Votes:'))?.match(/Votes: (\d+)/)?.[1];
+      const options = lines.find(l => l.includes('Options:'))?.match(/Options: (\d+)/)?.[1];
+      const status = lines.find(l => l.includes('Status:'))?.match(/Status: (.+)/)?.[1];
+
+      return { title, votes: parseInt(votes || '0'), options: parseInt(options || '0'), status };
+    }).filter(poll => poll.title);
+
+    return { type: 'analytics', overview, polls };
+  }
+
+  // Parse poll creation summary
+  const creationSummaryMatch = message.match(/Here's a summary of your poll:\n\n\*\*Category:\*\* (.+)\n\*\*Title:\*\* (.+)\n\*\*Question:\*\* (.+)\n\n\*\*Options:\*\*\n([\s\S]*?)(?=\n\nDoes this look good|$)/);
+  if (creationSummaryMatch) {
+    const category = creationSummaryMatch[1];
+    const title = creationSummaryMatch[2];
+    const question = creationSummaryMatch[3];
+    const optionsText = creationSummaryMatch[4];
+    
+    const options = optionsText.split('\n')
+      .map(line => line.trim().match(/^\d+\.\s(.+)/))
+      .filter(Boolean)
+      .map(match => match![1]);
+
+    return { type: 'poll_summary', category, title, question, options };
+  }
+
+  // Parse poll update field selection
+  const updateFieldMatch = message.match(/What would you like to update\?\n\n([\s\S]*?)(?=\n\nPlease reply|$)/);
+  if (updateFieldMatch) {
+    const fieldsText = updateFieldMatch[1];
+    const fields = fieldsText.split('\n')
+      .map(line => line.trim().match(/^(\d+)\.\s(.+)/))
+      .filter(Boolean)
+      .map(match => ({ number: match![1], field: match![2] }));
+
+    return { type: 'update_fields', fields };
+  }
+
   const optionsMatch = message.match(/Here are the options for "([^"]+)":\n([\s\S]*)/);
   if (optionsMatch) {
     const pollTitle = optionsMatch[1];
@@ -118,7 +230,7 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
             </div>
             <div className="space-y-3">
               {parsed.polls.map((poll, idx) => poll && (
-                <div key={poll.id || idx} className="bg-white/60 dark:bg-gray-800/60 border rounded-lg p-3 shadow-sm">
+                <div key={(poll as any).id || idx} className="bg-white/60 dark:bg-gray-800/60 border rounded-lg p-3 shadow-sm">
                   <div className="font-medium text-primary mb-2 flex items-start gap-2">
                     <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-bold flex-shrink-0">
                       #{idx + 1}
@@ -128,7 +240,7 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Users className="w-3 h-3" />
-                      {poll.category}
+                      {(poll as any).category}
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -138,10 +250,205 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
-                    Ends: {poll.end}
+                    Ends: {(poll as any).end || (poll as any).ends}
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        ) : parsed?.type === 'recent_polls' && Array.isArray(parsed.polls) ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-600" />
+              Recent Polls ({parsed.count})
+            </div>
+            <div className="space-y-3">
+              {parsed.polls.map((poll, idx) => poll && (
+                <div key={(poll as any).id || idx} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 shadow-sm">
+                  <div className="font-medium text-blue-700 dark:text-blue-300 mb-2 flex items-start gap-2">
+                    <span className="bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs font-bold flex-shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <span className="flex-1">{poll.title}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {(poll as any).category}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span className={poll.status === 'active' ? 'text-green-600 font-medium' : 'text-gray-500'}>
+                        {poll.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+                    Ends: {(poll as any).end || (poll as any).ends}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : parsed?.type === 'update_polls' && Array.isArray(parsed.polls) ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-orange-600" />
+              Your Polls - Select to Update
+            </div>
+            <div className="space-y-3">
+              {parsed.polls.map((poll, idx) => poll && (
+                <div key={(poll as any).id || idx} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 shadow-sm hover:bg-orange-100 dark:hover:bg-orange-900/30 cursor-pointer transition-colors">
+                  <div className="font-medium text-orange-700 dark:text-orange-300 mb-2 flex items-start gap-2">
+                    <span className="bg-orange-100 dark:bg-orange-800 text-orange-700 dark:text-orange-300 px-2 py-1 rounded text-xs font-bold flex-shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <span className="flex-1">{poll.title}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {(poll as any).category}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span className={poll.status === 'active' ? 'text-green-600 font-medium' : 'text-gray-500'}>
+                        {poll.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+                    Ends: {(poll as any).ends}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
+              💡 Reply with the poll number to select it for updating
+            </div>
+          </div>
+        ) : parsed?.type === 'my_polls' && Array.isArray(parsed.polls) ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-600" />
+              My Polls ({parsed.total} total)
+            </div>
+            <div className="space-y-3">
+              {parsed.polls.map((poll, idx) => poll && (
+                <div key={(poll as any).id || idx} className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 shadow-sm">
+                  <div className="font-medium text-purple-700 dark:text-purple-300 mb-2 flex items-start gap-2">
+                    <span className="bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 px-2 py-1 rounded text-xs font-bold flex-shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <span className="flex-1">{poll.title}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-2">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {(poll as any).category}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span className={poll.status === 'active' ? 'text-green-600 font-medium' : 'text-gray-500'}>
+                        {poll.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground grid grid-cols-2 gap-2 pt-2 border-t">
+                    <div>Created: {(poll as any).created}</div>
+                    <div>Ends: {(poll as any).ends}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : parsed?.type === 'analytics' && parsed.overview && parsed.polls ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              📊 Poll Analytics
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-3">
+              <div className="font-medium text-green-700 dark:text-green-300 mb-2">Overview</div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {Object.entries(parsed.overview).map(([key, value]) => (
+                  <div key={key} className="flex justify-between">
+                    <span className="text-muted-foreground">{key}:</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="font-medium text-sm mb-2">Individual Performance</div>
+              {parsed.polls.map((poll, idx) => (
+                <div key={idx} className="bg-white/60 dark:bg-gray-800/60 border rounded-lg p-3 shadow-sm">
+                  <div className="font-medium text-sm mb-2">{poll.title}</div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                    <div>Votes: {(poll as any).votes || 0}</div>
+                    <div>Options: {(poll as any).options || 0}</div>
+                    <div>Status: {poll.status}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : parsed?.type === 'poll_summary' && parsed.options ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-600" />
+              Poll Summary
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
+              <div>
+                <span className="font-medium text-blue-700 dark:text-blue-300">Category:</span>
+                <span className="ml-2 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs">
+                  {parsed.category}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-blue-700 dark:text-blue-300">Title:</span>
+                <div className="mt-1 text-sm">{parsed.title}</div>
+              </div>
+              <div>
+                <span className="font-medium text-blue-700 dark:text-blue-300">Question:</span>
+                <div className="mt-1 text-sm">{parsed.question}</div>
+              </div>
+              <div>
+                <span className="font-medium text-blue-700 dark:text-blue-300">Options:</span>
+                <div className="mt-2 space-y-1">
+                  {parsed.options.map((option, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm">
+                      <span className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                        {idx + 1}
+                      </span>
+                      {typeof option === 'string' ? option : (option as any)?.text || option}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : parsed?.type === 'update_fields' && parsed.fields ? (
+          <div>
+            <div className="font-semibold mb-3 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-orange-600" />
+              Select Field to Update
+            </div>
+            <div className="space-y-2">
+              {parsed.fields.map((field, idx) => (
+                <div key={idx} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 shadow-sm hover:bg-orange-100 dark:hover:bg-orange-900/30 cursor-pointer transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                      {field.number}
+                    </span>
+                    <span className="font-medium text-orange-700 dark:text-orange-300">{field.field}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
+              💡 Reply with the number or field name to select it
             </div>
           </div>
         ) : parsed?.type === 'options' && Array.isArray(parsed.options) ? (
@@ -154,9 +461,9 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
               {parsed.options.map((opt, idx) => opt && (
                 <div key={idx} className="bg-white/60 dark:bg-gray-800/60 border rounded-lg p-3 shadow-sm flex items-center gap-3">
                   <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {opt.number}
+                    {(opt as any).number || idx + 1}
                   </span>
-                  <span className="flex-1">{opt.text}</span>
+                  <span className="flex-1">{typeof opt === 'string' ? opt : (opt as any)?.text || opt}</span>
                 </div>
               ))}
             </div>
@@ -171,9 +478,9 @@ function ChatBubble({ message, isBot }: { message: string; isBot?: boolean }) {
               {parsed.options.map((opt, idx) => opt && (
                 <div key={idx} className="bg-white/60 dark:bg-gray-800/60 border rounded-lg p-3 shadow-sm flex items-center gap-3">
                   <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {opt.number}
+                    {(opt as any).number || idx + 1}
                   </span>
-                  <span className="flex-1">{opt.text}</span>
+                  <span className="flex-1">{typeof opt === 'string' ? opt : (opt as any)?.text || opt}</span>
                 </div>
               ))}
             </div>
@@ -592,16 +899,16 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
             className="text-xs"
             disabled={loading}
           >
-            Show Polls
+            📊 Show Polls
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleQuickAction('show recent 3 polls')}
+            onClick={() => handleQuickAction('show recent 5 polls')}
             className="text-xs"
             disabled={loading}
           >
-            Recent Polls
+            🕒 Recent Polls
           </Button>
           <Button
             variant="outline"
@@ -611,7 +918,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
             className="text-xs"
             disabled={loading}
           >
-            My Votes
+            ✅ My Votes
           </Button>
           {user.role === 'admin' && (
             <>
@@ -619,20 +926,47 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
                 variant="outline"
                 size="sm"
                 onClick={() => handleQuickAction('create a poll')}
-                className="text-xs"
+                className="text-xs bg-green-50 hover:bg-green-100 border-green-200"
                 disabled={loading}
               >
-                Create Poll
+                ➕ Create Poll
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickAction('update a poll')}
+                className="text-xs bg-orange-50 hover:bg-orange-100 border-orange-200"
+                disabled={loading}
+              >
+                ✏️ Update Poll
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickAction('show my polls')}
+                className="text-xs bg-purple-50 hover:bg-purple-100 border-purple-200"
+                disabled={loading}
+              >
+                📋 My Polls
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickAction('show poll analytics')}
+                className="text-xs bg-blue-50 hover:bg-blue-100 border-blue-200"
+                disabled={loading}
+              >
+                📈 Analytics
               </Button>
               {pollCreationStep && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickAction('continue poll')}
-                  className="text-xs bg-primary/10"
+                  className="text-xs bg-primary/10 border-primary/30"
                   disabled={loading}
                 >
-                  Continue Poll
+                  🔄 Continue Poll
                 </Button>
               )}
             </>
@@ -644,7 +978,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
             className="text-xs"
             disabled={loading}
           >
-            Help
+            ❓ Help
           </Button>
           <Button
             variant="outline"
@@ -653,7 +987,7 @@ export default function Chatbot({ onVoteSuccess }: { onVoteSuccess?: () => void 
             className="text-xs ml-auto"
             disabled={loading}
           >
-            Refresh
+            🔄 Refresh
           </Button>
         </div>
       </div>
