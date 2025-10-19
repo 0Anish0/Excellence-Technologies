@@ -1,54 +1,40 @@
-import mammoth from 'mammoth';
-import * as PDFJS from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import mammoth from 'mammoth'
+import { Document, Packer, Paragraph, TextRun } from 'docx'
 
-// Initialize PDF.js
-if (typeof window !== 'undefined') {
-    // Use a more reliable way to load the worker
-    const pdfjsWorker = require('pdfjs-dist/build/pdf.worker.entry');
-    PDFJS.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-}
+// Set the worker source
+GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js'
 
 export async function extractPdfText(file: File): Promise<string> {
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await PDFJS.getDocument({ 
-            data: arrayBuffer,
-            cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
-            cMapPacked: true
-        }).promise;
+        const arrayBuffer = await file.arrayBuffer()
+        const pdf = await getDocument(arrayBuffer).promise
+        let text = ''
         
-        let fullText = '';
-        const numPages = pdf.numPages;
-
-        for (let i = 1; i <= numPages; i++) {
-            try {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items
-                    .map((item: any) => item.str)
-                    .join(' ');
-                fullText += pageText + '\n';
-            } catch (pageError) {
-                console.error(`Error extracting text from page ${i}:`, pageError);
-                // Continue with next page even if one page fails
-                continue;
-            }
+        // Extract text from each page
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const content = await page.getTextContent()
+            const pageText = content.items
+                .map((item: any) => item.str)
+                .join(' ')
+            text += pageText + '\n'
         }
-
-        return fullText.trim() || 'No text content found in the PDF.';
-    } catch (error: any) {
-        console.error('PDF extraction error:', error);
-        throw new Error(`Failed to extract text: ${error.message || 'Unknown error'}`);
+        
+        return text.trim() || 'No text content found in the PDF.'
+    } catch (error) {
+        console.error('PDF extraction error:', error)
+        throw new Error('Failed to extract text from PDF')
     }
 }
 
 export async function extractDocxText(file: File): Promise<string> {
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        const { value } = await mammoth.extractRawText({ arrayBuffer });
-        return value;
-    } catch (error: any) {
-        console.error('DOCX extraction error:', error);
-        throw new Error(`Failed to extract text: ${error.message || 'Unknown error'}`);
+        const arrayBuffer = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({ arrayBuffer })
+        return result.value.trim() || 'No text content found in the DOCX.'
+    } catch (error) {
+        console.error('DOCX extraction error:', error)
+        throw new Error('Failed to extract text from DOCX')
     }
 }
