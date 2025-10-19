@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import dynamic from 'next/dynamic';
 
 const inter = Inter({ subsets: ['latin'] });
-const Chatbot = dynamic(() => import('@/components/chatbot'), { ssr: false });
+const Chatbot = dynamic(() => import('../components/chatbot.tsx').then(mod => mod.default), { ssr: false });
 
 export const metadata: Metadata = {
   title: 'Poll App',
